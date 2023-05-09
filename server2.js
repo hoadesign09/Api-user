@@ -15,6 +15,8 @@ mongoose.connect('mongodb://localhost/mydatabase', { useNewUrlParser: true });
 // create user schema
 const userSchema = new mongoose.Schema({
   email: { type: String, unique: true, required: true },
+  fullname: [String],
+  phone: [String],
   savedShows: [String],
 });
 
