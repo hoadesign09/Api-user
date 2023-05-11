@@ -1,22 +1,90 @@
 const express = require('express');
+const bodyParser = require('body-parser');
+const mongoose = require('mongoose');
+
 const app = express();
-const PORT = 3131;
 
-app.use(express.json());
+const PORT = process.env.PORT || 3132;
 
-let users = [];
+// parse application/json
+app.use(bodyParser.json());
 
-app.post('/users', (req, res) => {
-  const { email } = req.body;
-  const newUser = { email, savedShows: [] };
-  users.push(newUser);
-  res.status(201).json(newUser);
+// connect to database
+mongoose.connect('mongodb://localhost/User', { useNewUrlParser: true });
+
+const validateUserInput = (req, res, next) => {
+  const { fullname, phone, services } = req.body;
+
+  if (!fullname || !phone || !services) {
+    return res.status(400).json({ error: 'Vui lòng cung cấp đầy đủ thông tin người dùng.' });
+  }
+
+  // Nếu các trường bắt buộc đã được cung cấp, cho phép tiếp tục xử lý
+  next();
+}
+// create user schema
+const userSchema = new mongoose.Schema({
+  email: { type: String, unique: true, required: true },
+  fullname: {type: String, required: true},
+  phone: {type: String, required: true},
+  services: {type: String, required: true}, 
+  savedShows: [String],
 });
 
-app.get('/users', (req, res) => {
-  res.json(users);
+// create user model
+const User = mongoose.model('User', userSchema);
+
+app.get('/users', async (req, res) => {
+    try {
+      const users = await User.find();
+      return res.status(200).json(users);
+    } catch (err) {
+      console.error('Error getting users', err);
+      return res.status(500).json({ message: 'Internal server error' });
+    }
+  });
+  
+// create new user
+app.post('/users',validateUserInput,async (req, res) => {
+  const { email, savedShows, fullname, phone, services } = req.body;
+  const user = new User({ email, savedShows, fullname, phone, services });
+
+  try {
+    await user.save();
+    res.send(user);
+  } catch (err) {
+    console.log(err);
+    res.status(500).send(err);
+  }
 });
 
+app.delete('/users/:id', async (req, res) => {
+  try {
+    const deletedUser = await User.findByIdAndDelete(req.params.id);
+    if (!deletedUser) {
+      return res.status(404).send('User not found');
+    }
+    res.send(deletedUser);
+  } catch (error) {
+    console.error(error);
+    res.status(500).send('Internal server error');
+  }
+});
+
+app.patch('/users/:id', async (req, res) => {
+  try {
+    const updatedUser = await User.findOneAndUpdate(req.params.id , req.body, { new: true });
+    if (!updatedUser) {
+      return res.status(404).send('User not found');
+    }
+    res.send(updatedUser);
+  } catch (error) {
+    console.error(error);
+    res.status(500).send('Internal server error');
+  }
+});
+
+// start server
 app.listen(PORT, () => {
   console.log(`Server listening on port ${PORT}`);
 });
