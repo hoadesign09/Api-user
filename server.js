@@ -1,37 +1,41 @@
 const express = require('express');
 const bodyParser = require('body-parser');
 const mongoose = require('mongoose');
-
+const cors = require('cors');
 const app = express();
 
 const PORT = process.env.PORT || 3132;
 
-// parse application/json
 app.use(bodyParser.json());
-
-// connect to database
+app.use(cors())
 mongoose.connect('mongodb://localhost/User', { useNewUrlParser: true });
 
-const validateUserInput = (req, res, next) => {
-  const { fullname, phone, services } = req.body;
+// const validateUserInput = (req, res, next) => {
+//   const { fullname, phone, services } = req.body;
 
-  if (!fullname || !phone || !services) {
-    return res.status(400).json({ error: 'Vui lòng cung cấp đầy đủ thông tin người dùng.' });
-  }
+//   if (!fullname || !phone || !services) {
+//     return res.status(400).json({ error: 'Vui lòng cung cấp đầy đủ thông tin người dùng.' });
+//   }
 
-  // Nếu các trường bắt buộc đã được cung cấp, cho phép tiếp tục xử lý
-  next();
-}
-// create user schema
+//   next();
+// }
+
 const userSchema = new mongoose.Schema({
+  _id: {type: String},
+  uid: {type: String, default: null},
   email: { type: String, unique: true, required: true },
-  fullname: {type: String, required: true},
-  phone: {type: String, required: true},
-  services: {type: String, required: true}, 
-  savedShows: [String],
+  password: {type: String, default: null},
+  fullname: {type: String, default: null},
+  phone: {type: String, default: null},
+  services: {type: String, default: null}, 
+  savedShows: [String], 
 });
 
-// create user model
+userSchema.pre('save', function(next) {
+  this._id = this.uid;
+  next();
+});
+
 const User = mongoose.model('User', userSchema);
 
 app.get('/users', async (req, res) => {
@@ -44,10 +48,9 @@ app.get('/users', async (req, res) => {
     }
   });
   
-// create new user
-app.post('/users',validateUserInput,async (req, res) => {
-  const { email, savedShows, fullname, phone, services } = req.body;
-  const user = new User({ email, savedShows, fullname, phone, services });
+app.post('/users',async (req, res) => {
+  const { uid, email, password, savedShows, fullname, phone, services } = req.body;
+  const user = new User({ uid, email, password, savedShows, fullname, phone, services });
 
   try {
     await user.save();
@@ -57,6 +60,19 @@ app.post('/users',validateUserInput,async (req, res) => {
     res.status(500).send(err);
   }
 });
+
+app.get('/users/:id', async (req, res) => {
+  try {
+    const user = await User.findOne({ _id: req.params.id });
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+    return res.status(200).json({ user });
+  } catch (error) {
+    console.error(error.message);
+    return res.status(500).json({ message: 'Server Error' });
+  }
+})
 
 app.delete('/users/:id', async (req, res) => {
   try {
@@ -84,7 +100,6 @@ app.patch('/users/:id', async (req, res) => {
   }
 });
 
-// start server
 app.listen(PORT, () => {
   console.log(`Server listening on port ${PORT}`);
 });
